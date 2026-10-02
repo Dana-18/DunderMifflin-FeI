@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { EncabezadoPublico } from '../../components/EncabezadoPublico';
 import { Tarjeta } from '../../components/Tarjeta';
 import { FormularioRegistro } from './FormularioRegistro';
@@ -20,9 +21,11 @@ export function PantallaRegistro() {
   return (
     <div className="min-h-screen bg-fondo">
       <EncabezadoPublico>
-        {/* "Ingresar" todavía no lleva a ningún lado: la pantalla de ingreso no existe. */}
         <p className="text-sm text-gris-500">
-          ¿Ya tenés cuenta? <span className="font-medium text-negro">Ingresar</span>
+          ¿Ya tenés cuenta?{' '}
+          <Link to="/ingresar" className="font-medium text-negro hover:text-gris-500">
+            Ingresar
+          </Link>
         </p>
       </EncabezadoPublico>
 

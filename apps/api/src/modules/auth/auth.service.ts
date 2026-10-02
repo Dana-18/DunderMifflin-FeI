@@ -1,7 +1,13 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Prisma } from '@prisma/client';
-import { generarSlug, type RegistroOrganizacion, type RegistroRespuesta } from '@setpoint/shared';
+import { Prisma, type Organizacion, type Usuario } from '@prisma/client';
+import {
+  generarSlug,
+  type Cuenta,
+  type Ingreso,
+  type RegistroOrganizacion,
+  type Sesion,
+} from '@setpoint/shared';
 import { env } from '../../config/env';
 import { ErrorHttp } from '../../lib/error-http';
 import { prisma } from '../../lib/prisma';
@@ -35,17 +41,82 @@ async function slugDisponible(tx: Prisma.TransactionClient, nombre: string): Pro
 }
 
 function firmarToken(usuarioId: number, organizacionId: number): string {
-  // organizacionId viaja en el token porque es la clave de aislamiento:
-  // cada request autenticado va a filtrar por ella.
+  // El id del usuario va en "sub", el campo estándar de JWT para el dueño
+  // del token. organizacionId viaja también porque es la clave de
+  // aislamiento: cada request autenticado va a filtrar por ella.
   return jwt.sign({ organizacionId }, env.JWT_SECRET, {
     subject: String(usuarioId),
     expiresIn: DURACION_TOKEN,
   });
 }
 
+// Elige qué datos salen de la API. Se arma campo por campo a propósito: así
+// el passwordHash no puede colarse en una respuesta por descuido.
+function armarCuenta(usuario: Usuario, organizacion: Organizacion): Cuenta {
+  return {
+    usuario: {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      email: usuario.email,
+    },
+    organizacion: {
+      id: organizacion.id,
+      nombre: organizacion.nombre,
+      slug: organizacion.slug,
+    },
+  };
+}
+
+function armarSesion(usuario: Usuario, organizacion: Organizacion): Sesion {
+  return { ...armarCuenta(usuario, organizacion), token: firmarToken(usuario.id, organizacion.id) };
+}
+
+// Ingreso al panel de la organización.
+export async function ingresar(datos: Ingreso): Promise<Sesion> {
+  const usuario = await prisma.usuario.findUnique({
+    where: { email: datos.email },
+    include: {
+      // Hoy cada usuario administra una sola organización. Si administrara
+      // varias, entra a la primera; el selector queda para cuando haga falta.
+      administra: { include: { organizacion: true }, orderBy: { creadoEn: 'asc' }, take: 1 },
+    },
+  });
+
+  const passwordCorrecta = usuario !== null && (await bcrypt.compare(datos.password, usuario.passwordHash));
+
+  // Un solo mensaje para "no existe el email" y "contraseña incorrecta":
+  // distinguirlos le diría a cualquiera qué emails tienen cuenta.
+  if (!usuario || !passwordCorrecta) {
+    throw new ErrorHttp(401, 'El email o la contraseña no coinciden');
+  }
+
+  const [admin] = usuario.administra;
+  if (!admin) {
+    // Un Usuario sin organización es un jugador: su lugar es la app móvil.
+    throw new ErrorHttp(403, 'Esta cuenta no administra ninguna organización');
+  }
+
+  return armarSesion(usuario, admin.organizacion);
+}
+
+// Datos de quien está detrás de un token ya verificado. Vuelve a consultar la
+// base porque el token puede seguir siendo válido aunque la cuenta ya no
+// exista o haya dejado de administrar la organización.
+export async function cuentaActual(usuarioId: number, organizacionId: number): Promise<Cuenta> {
+  const admin = await prisma.adminOrganizacion.findUnique({
+    where: { usuarioId_organizacionId: { usuarioId, organizacionId } },
+    include: { usuario: true, organizacion: true },
+  });
+
+  if (!admin) throw new ErrorHttp(401, 'Tu sesión ya no es válida. Ingresá de nuevo');
+
+  return armarCuenta(admin.usuario, admin.organizacion);
+}
+
 // F01 — Alta de la organización. Crea la cuenta de quien la administra, la
 // organización y el vínculo entre ambos. O se crean los tres o no se crea nada.
-export async function registrarOrganizacion(datos: RegistroOrganizacion): Promise<RegistroRespuesta> {
+export async function registrarOrganizacion(datos: RegistroOrganizacion): Promise<Sesion> {
   // El hash va fuera de la transacción: tarda a propósito y no tiene sentido
   // mantener una conexión de la base abierta mientras tanto.
   const passwordHash = await bcrypt.hash(datos.password, RONDAS_BCRYPT);
@@ -79,20 +150,7 @@ export async function registrarOrganizacion(datos: RegistroOrganizacion): Promis
       return { usuario, organizacion };
     });
 
-    return {
-      token: firmarToken(usuario.id, organizacion.id),
-      usuario: {
-        id: usuario.id,
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-        email: usuario.email,
-      },
-      organizacion: {
-        id: organizacion.id,
-        nombre: organizacion.nombre,
-        slug: organizacion.slug,
-      },
-    };
+    return armarSesion(usuario, organizacion);
   } catch (err) {
     // Dos registros simultáneos pueden pasar los dos la verificación de
     // arriba. El UNIQUE de la base frena al segundo y Prisma avisa con P2002.

@@ -58,7 +58,7 @@ Registro con email y contraseña. Tiene dos momentos:
 - El **slug** del link público se genera del nombre del circuito (`Polenta Team Tenis` → `polenta-team-tenis`). Si ya está tomado, se le agrega un sufijo numérico: dos circuitos pueden llamarse igual, y rechazar el registro por eso sería un obstáculo sin sentido.
 - El email es único en todo el sistema. Si ya tiene cuenta, la API responde 409 y el formulario lo muestra en el campo.
 - La contraseña se guarda hasheada con bcrypt, con un mínimo de 8 caracteres.
-- La respuesta incluye un **token JWT** con el `organizacion_id`, para que quien se registra quede con la sesión iniciada sin tener que ingresar de nuevo.
+- La respuesta es la misma que la del ingreso (token JWT y datos de la cuenta, ver "Ingreso y sesión"), para que quien se registra quede con la sesión iniciada sin tener que ingresar de nuevo.
 - Las reglas de validación viven en `packages/shared` y las aplican la web y la API con el mismo schema de Zod.
 
 > **Por qué no se pide más en el registro:** la configuración del ranking es opcional ([07-configurabilidad.md](07-configurabilidad.md) §1, `usa_ranking`). Pedirla de entrada frenaría a quien solo quiere probar la plataforma con un torneo suelto.
@@ -70,6 +70,19 @@ Registro con email y contraseña. Tiene dos momentos:
 - **Etapas del calendario** (Primavera, Verano, Pretemporada, Otoño, Invierno) — definen los casilleros del ranking
 - Tabla de puntos por instancia
 - Clubes con los que trabaja
+
+### Ingreso y sesión
+
+Pantalla "Ingresar" (`/ingresar`, `POST /api/auth/ingreso`), con email y contraseña.
+
+- **Autenticación por token JWT, sin sesiones en el servidor.** El token se firma con `JWT_SECRET`, dura 7 días y lleva el id del usuario (`sub`) y el `organizacion_id`. *Por qué:* la API no guarda estado, así que la misma autenticación sirve para la web y para la app móvil sin cookies ni tabla de sesiones.
+- **Credenciales incorrectas:** 401 con un único mensaje para "no existe el email" y "contraseña incorrecta". Distinguirlos le diría a cualquiera qué emails tienen cuenta.
+- **Cuenta sin organización** (un jugador): 403. El panel web es solo para organizaciones; los jugadores entran desde la app.
+- **Varias organizaciones:** el schema lo permite, pero hoy cada usuario administra una. Se entra a la primera; el selector queda para cuando haga falta.
+- **En la web** el token se guarda en `localStorage` junto con los datos del usuario y la organización, y viaja en el encabezado `Authorization: Bearer` de cada pedido.
+- **En la API**, el middleware `autenticar` verifica el token y deja el id del usuario y de la organización en el request. `GET /api/auth/yo` es la primera ruta protegida.
+- **Sesión rechazada:** si la API responde 401 o 403 a un pedido que llevaba token (vencido o sin permiso), el hook `useSesionRechazada` borra la sesión y manda a "Ingresar", con un aviso de que venció.
+- **Fuera de alcance por ahora:** cerrar sesión (va en "Tu circuito") y recuperar la contraseña (necesita envío de emails).
 
 ---
 
