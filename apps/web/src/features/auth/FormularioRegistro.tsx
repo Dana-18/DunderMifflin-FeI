@@ -4,7 +4,7 @@ import { generarSlug, registroOrganizacionSchema, type RegistroOrganizacion } fr
 import { Boton } from '../../components/Boton';
 import { Campo } from '../../components/Campo';
 import { ErrorDeApi } from '../../lib/api';
-import { guardarToken } from '../../lib/sesion';
+import { guardarSesion } from '../../lib/sesion';
 import { fortalezaDePassword } from './fortaleza';
 import { useRegistrarOrganizacion } from './registro.api';
 
@@ -63,10 +63,10 @@ export function FormularioRegistro() {
 
     setErrores({});
     registro.mutate(resultado.data, {
-      onSuccess: ({ token }) => {
-        // Primero se guarda el token y después se navega: la pantalla de
+      onSuccess: (sesion) => {
+        // Primero se guarda la sesión y después se navega: la pantalla de
         // inicio ya tiene que encontrar la sesión.
-        guardarToken(token);
+        guardarSesion(sesion);
         navigate('/');
       },
     });

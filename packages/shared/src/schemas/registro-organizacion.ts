@@ -24,23 +24,7 @@ export const registroOrganizacionSchema = z.object({
 
 export type RegistroOrganizacion = z.infer<typeof registroOrganizacionSchema>;
 
-// Lo que responde la API cuando el registro sale bien.
-export const registroRespuestaSchema = z.object({
-  token: z.string(),
-  usuario: z.object({
-    id: z.number().int(),
-    nombre: z.string(),
-    apellido: z.string(),
-    email: z.string(),
-  }),
-  organizacion: z.object({
-    id: z.number().int(),
-    nombre: z.string(),
-    slug: z.string(),
-  }),
-});
-
-export type RegistroRespuesta = z.infer<typeof registroRespuestaSchema>;
+// Lo que responde la API cuando el registro sale bien es una Sesion: ver sesion.ts.
 
 // Forma de todos los errores de la API. `campos` viene cuando el error se
 // puede atribuir a un campo del formulario (clave = nombre del campo).
