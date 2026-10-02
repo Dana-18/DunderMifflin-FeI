@@ -63,13 +63,21 @@ Registro con email y contraseña. Tiene dos momentos:
 
 > **Por qué no se pide más en el registro:** la configuración del ranking es opcional ([07-configurabilidad.md](07-configurabilidad.md) §1, `usa_ranking`). Pedirla de entrada frenaría a quien solo quiere probar la plataforma con un torneo suelto.
 
-**2. Configurar el circuito** (pantalla "Tu circuito", después del registro):
+**2. Configurar el circuito** (pantalla "Tu circuito", en `/circuito`; es a donde se llega después de registrarse o ingresar). No hay un alta aparte: el circuito **es** la organización que se creó en el registro, y acá se la configura.
 
-- Datos de contacto
-- **Categorías propias** (en POLENTA: Segunda y Tercera)
+- Nombre y datos de contacto. La **dirección pública (slug) no cambia** aunque cambie el nombre: es el link que la organización ya compartió.
+- **Categorías propias** (en POLENTA: Segunda y Tercera). Van aparte del ranking porque hacen falta siempre: todo torneo es de una categoría.
+- **Ranking anual** (`usa_ranking`), que se prende o se apaga. Apagarlo no borra las etapas ni los puntos: solo dejan de mostrarse.
 - **Etapas del calendario** (Primavera, Verano, Pretemporada, Otoño, Invierno) — definen los casilleros del ranking
-- Tabla de puntos por instancia
-- Clubes con los que trabaja
+- **Tabla de puntos por instancia.** Una organización nueva ve la tabla por defecto (100 / 75 / 50 / 25 / 15 / 10) hasta que guarda la suya.
+- Clubes con los que trabaja: **todavía no implementado**; se hace con el alta de clubes (§4).
+
+Cómo se guarda:
+
+- `GET` y `PUT /api/organizaciones/:slug/circuito`. Las dos pasan por `autenticar`, y el servicio comprueba además que el usuario **administre esa organización** (403 si no): el token dice quién es, no qué puede tocar.
+- **Se guarda solo**, 800 ms después del último cambio, con el hook `useGuardadoAutomatico`: valida con el schema de Zod compartido antes de enviar (si no pasa, no manda nada y marca el campo) y nunca tiene dos guardados a la vez. *Por qué sin botón:* es configuración que se ajusta de a poco, y un "Guardar" olvidado pierde trabajo.
+- El `PUT` manda **la configuración completa** y se aplica en **una transacción de Prisma**: datos de la organización, categorías, etapas y tabla de puntos. Si un paso falla, no queda nada a medias.
+- Las categorías y etapas se identifican **por nombre**. Las que se quitan **se desactivan, no se borran**, porque puede haber torneos, jugadores o puntos de ranking que las referencian. Si se vuelve a agregar una con el mismo nombre, se reactiva la misma fila y conserva su historial.
 
 ### Ingreso y sesión
 
@@ -82,7 +90,7 @@ Pantalla "Ingresar" (`/ingresar`, `POST /api/auth/ingreso`), con email y contras
 - **En la web** el token se guarda en `localStorage` junto con los datos del usuario y la organización, y viaja en el encabezado `Authorization: Bearer` de cada pedido.
 - **En la API**, el middleware `autenticar` verifica el token y deja el id del usuario y de la organización en el request. `GET /api/auth/yo` es la primera ruta protegida.
 - **Sesión rechazada:** si la API responde 401 o 403 a un pedido que llevaba token (vencido o sin permiso), el hook `useSesionRechazada` borra la sesión y manda a "Ingresar", con un aviso de que venció.
-- **Fuera de alcance por ahora:** cerrar sesión (va en "Tu circuito") y recuperar la contraseña (necesita envío de emails).
+- **Fuera de alcance por ahora:** cerrar sesión (falta la navegación del panel donde ponerlo) y recuperar la contraseña (necesita envío de emails).
 
 ---
 
