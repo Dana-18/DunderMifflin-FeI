@@ -51,9 +51,21 @@ borrador → publicado → inscripciones_cerradas → zonas_generadas
 
 ## 3. Alta de la organización
 
-Registro con email y contraseña. Se configura:
+Registro con email y contraseña. Tiene dos momentos:
 
-- Nombre del circuito y datos de contacto
+**1. Crear la cuenta** (pantalla "Registrar tu organización", `POST /api/auth/registro`). Pide solo lo indispensable: nombre del circuito, nombre y apellido de quien lo administra, email y contraseña. En una misma transacción se crean el usuario, la organización y el vínculo de administrador; si algo falla, no queda nada a medias.
+
+- El **slug** del link público se genera del nombre del circuito (`Polenta Team Tenis` → `polenta-team-tenis`). Si ya está tomado, se le agrega un sufijo numérico: dos circuitos pueden llamarse igual, y rechazar el registro por eso sería un obstáculo sin sentido.
+- El email es único en todo el sistema. Si ya tiene cuenta, la API responde 409 y el formulario lo muestra en el campo.
+- La contraseña se guarda hasheada con bcrypt, con un mínimo de 8 caracteres.
+- La respuesta incluye un **token JWT** con el `organizacion_id`, para que quien se registra quede con la sesión iniciada sin tener que ingresar de nuevo.
+- Las reglas de validación viven en `packages/shared` y las aplican la web y la API con el mismo schema de Zod.
+
+> **Por qué no se pide más en el registro:** la configuración del ranking es opcional ([07-configurabilidad.md](07-configurabilidad.md) §1, `usa_ranking`). Pedirla de entrada frenaría a quien solo quiere probar la plataforma con un torneo suelto.
+
+**2. Configurar el circuito** (pantalla "Tu circuito", después del registro):
+
+- Datos de contacto
 - **Categorías propias** (en POLENTA: Segunda y Tercera)
 - **Etapas del calendario** (Primavera, Verano, Pretemporada, Otoño, Invierno) — definen los casilleros del ranking
 - Tabla de puntos por instancia

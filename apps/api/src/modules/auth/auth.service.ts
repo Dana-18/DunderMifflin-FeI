@@ -1,0 +1,106 @@
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { Prisma } from '@prisma/client';
+import { generarSlug, type RegistroOrganizacion, type RegistroRespuesta } from '@setpoint/shared';
+import { env } from '../../config/env';
+import { ErrorHttp } from '../../lib/error-http';
+import { prisma } from '../../lib/prisma';
+
+// Costo de bcrypt: cada punto duplica el tiempo de cálculo. 10 es el valor
+// habitual; hace lento probar contraseñas en masa sin que el registro se note.
+const RONDAS_BCRYPT = 10;
+
+const DURACION_TOKEN = '7d';
+
+const emailEnUso = () =>
+  new ErrorHttp(409, 'Ya hay una cuenta con ese email', {
+    email: 'Ya hay una cuenta con ese email',
+  });
+
+// Busca un slug libre: "polenta", y si está tomado "polenta-2", "polenta-3"...
+// Recibe el cliente de la transacción para leer dentro de ella.
+async function slugDisponible(tx: Prisma.TransactionClient, nombre: string): Promise<string> {
+  const base = generarSlug(nombre);
+  const tomados = await tx.organizacion.findMany({
+    where: { slug: { startsWith: base } },
+    select: { slug: true },
+  });
+  const usados = new Set(tomados.map((o) => o.slug));
+
+  if (!usados.has(base)) return base;
+
+  let sufijo = 2;
+  while (usados.has(`${base}-${sufijo}`)) sufijo++;
+  return `${base}-${sufijo}`;
+}
+
+function firmarToken(usuarioId: number, organizacionId: number): string {
+  // organizacionId viaja en el token porque es la clave de aislamiento:
+  // cada request autenticado va a filtrar por ella.
+  return jwt.sign({ organizacionId }, env.JWT_SECRET, {
+    subject: String(usuarioId),
+    expiresIn: DURACION_TOKEN,
+  });
+}
+
+// F01 — Alta de la organización. Crea la cuenta de quien la administra, la
+// organización y el vínculo entre ambos. O se crean los tres o no se crea nada.
+export async function registrarOrganizacion(datos: RegistroOrganizacion): Promise<RegistroRespuesta> {
+  // El hash va fuera de la transacción: tarda a propósito y no tiene sentido
+  // mantener una conexión de la base abierta mientras tanto.
+  const passwordHash = await bcrypt.hash(datos.password, RONDAS_BCRYPT);
+
+  try {
+    const { usuario, organizacion } = await prisma.$transaction(async (tx) => {
+      const existente = await tx.usuario.findUnique({ where: { email: datos.email } });
+      if (existente) throw emailEnUso();
+
+      const slug = await slugDisponible(tx, datos.nombreOrganizacion);
+
+      const usuario = await tx.usuario.create({
+        data: {
+          email: datos.email,
+          passwordHash,
+          nombre: datos.nombre,
+          apellido: datos.apellido,
+        },
+      });
+
+      // usaRanking y el resto de la configuración quedan con los valores por
+      // defecto del schema: se eligen después, en "Tu circuito".
+      const organizacion = await tx.organizacion.create({
+        data: {
+          nombre: datos.nombreOrganizacion,
+          slug,
+          admins: { create: { usuarioId: usuario.id } },
+        },
+      });
+
+      return { usuario, organizacion };
+    });
+
+    return {
+      token: firmarToken(usuario.id, organizacion.id),
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        email: usuario.email,
+      },
+      organizacion: {
+        id: organizacion.id,
+        nombre: organizacion.nombre,
+        slug: organizacion.slug,
+      },
+    };
+  } catch (err) {
+    // Dos registros simultáneos pueden pasar los dos la verificación de
+    // arriba. El UNIQUE de la base frena al segundo y Prisma avisa con P2002.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const columnas = String(err.meta?.target ?? '');
+      if (columnas.includes('email')) throw emailEnUso();
+      throw new ErrorHttp(409, 'Justo se registró otra organización con ese nombre. Probá de nuevo');
+    }
+    throw err;
+  }
+}

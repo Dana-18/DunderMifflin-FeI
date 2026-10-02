@@ -77,7 +77,7 @@ build/
 Y el `.env.example`:
 
 ```
-DATABASE_URL="postgresql://setpoint:setpoint@localhost:5432/setpoint"
+DATABASE_URL="postgresql://setpoint:setpoint@localhost:5433/setpoint"
 JWT_SECRET="cambiar-en-produccion"
 MERCADOPAGO_ACCESS_TOKEN="TEST-..."
 ANTHROPIC_API_KEY="sk-ant-..."
@@ -97,12 +97,13 @@ Crear `docker-compose.yml` en la raíz:
 services:
   db:
     image: postgres:16
+    container_name: dundermifflin-fei-db
     environment:
       POSTGRES_USER: setpoint
       POSTGRES_PASSWORD: setpoint
       POSTGRES_DB: setpoint
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -115,7 +116,9 @@ docker compose up -d db
 docker compose ps        # debería decir "running"
 ```
 
-**Verificación:** el contenedor levanta y queda corriendo. Si falla, casi siempre es que el puerto 5432 ya está ocupado por un Postgres instalado localmente.
+**Verificación:** el contenedor levanta y queda corriendo. Si falla, casi siempre es que el puerto ya está ocupado.
+
+> **Por qué 5433 y un nombre de contenedor propio:** el 5432 es el puerto por defecto de Postgres y suele estar tomado por una instalación local o por el contenedor de otro proyecto. Con el puerto corrido y `container_name` propio, esta base convive con cualquier otra sin pisarse. Adentro del contenedor Postgres sigue escuchando en 5432; solo cambia el puerto de la máquina.
 
 > No hay Dockerfile todavía. Esto es una imagen oficial y ya está. Es la entrada más suave a Docker que existe, y deja el concepto de `compose` aprendido antes de escribir imágenes propias.
 
@@ -188,7 +191,7 @@ cd apps/api && npx prisma init && cd ../..
 En el `apps/api/.env` que se generó:
 
 ```
-DATABASE_URL="postgresql://setpoint:setpoint@localhost:5432/setpoint"
+DATABASE_URL="postgresql://setpoint:setpoint@localhost:5433/setpoint"
 ```
 
 `apps/api/src/index.ts` con un único endpoint `GET /api/salud`.
