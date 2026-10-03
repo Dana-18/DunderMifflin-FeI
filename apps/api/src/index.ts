@@ -3,6 +3,7 @@ import cors from 'cors';
 import { env } from './config/env';
 import { manejarErrores } from './middleware/errores';
 import { authRouter } from './modules/auth/auth.routes';
+import { organizacionesRouter } from './modules/organizaciones/organizaciones.routes';
 
 const app = express();
 app.use(cors());
@@ -13,6 +14,7 @@ app.get('/api/salud', (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/organizaciones', organizacionesRouter);
 
 // Siempre al final: recibe los errores de todo lo de arriba.
 app.use(manejarErrores);

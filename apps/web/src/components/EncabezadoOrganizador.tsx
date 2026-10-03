@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 type ItemNavegacion = {
   etiqueta: string;
   href: string;
@@ -5,11 +7,13 @@ type ItemNavegacion = {
 
 type Props = {
   organizacion: string;
-  navegacion: ItemNavegacion[];
+  navegacion?: ItemNavegacion[];
   activo?: string;
+  /** Lo que va a la derecha cuando la pantalla no tiene navegación. */
+  children?: ReactNode;
 };
 
-export function EncabezadoOrganizador({ organizacion, navegacion, activo }: Props) {
+export function EncabezadoOrganizador({ organizacion, navegacion = [], activo, children }: Props) {
   return (
     <header className="flex h-[60px] items-center justify-between gap-6 bg-negro px-7">
       <div className="flex items-center gap-3.5">
@@ -23,23 +27,27 @@ export function EncabezadoOrganizador({ organizacion, navegacion, activo }: Prop
         <span className="text-sm text-gris-400">{organizacion}</span>
       </div>
 
-      <nav className="flex items-center gap-1">
-        {navegacion.map(({ etiqueta, href }) => {
-          const esActivo = etiqueta === activo;
-          return (
-            <a
-              key={href}
-              href={href}
-              aria-current={esActivo ? 'page' : undefined}
-              className={`flex h-[34px] items-center rounded-lg px-[13px] text-sm ${
-                esActivo ? 'bg-carbon font-semibold text-white' : 'text-gris-400 hover:text-white'
-              }`}
-            >
-              {etiqueta}
-            </a>
-          );
-        })}
-      </nav>
+      {navegacion.length > 0 && (
+        <nav className="flex items-center gap-1">
+          {navegacion.map(({ etiqueta, href }) => {
+            const esActivo = etiqueta === activo;
+            return (
+              <a
+                key={href}
+                href={href}
+                aria-current={esActivo ? 'page' : undefined}
+                className={`flex h-[34px] items-center rounded-lg px-[13px] text-sm ${
+                  esActivo ? 'bg-carbon font-semibold text-white' : 'text-gris-400 hover:text-white'
+                }`}
+              >
+                {etiqueta}
+              </a>
+            );
+          })}
+        </nav>
+      )}
+
+      {children}
     </header>
   );
 }

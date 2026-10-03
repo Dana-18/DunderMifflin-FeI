@@ -23,7 +23,7 @@ const SIN_CONEXION = 'No pudimos conectar con el servidor. Revisá tu conexión 
 
 // Todos los pedidos a la API pasan por acá. Devuelve el cuerpo de la
 // respuesta sin validar: quien llama lo pasa por su schema de Zod.
-async function pedir(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Promise<unknown> {
+async function pedir(metodo: 'GET' | 'POST' | 'PUT', ruta: string, cuerpo?: unknown): Promise<unknown> {
   const sesion = leerSesion();
 
   const headers: Record<string, string> = {};
@@ -69,4 +69,8 @@ export function getJson(ruta: string): Promise<unknown> {
 
 export function postJson(ruta: string, cuerpo: unknown): Promise<unknown> {
   return pedir('POST', ruta, cuerpo);
+}
+
+export function putJson(ruta: string, cuerpo: unknown): Promise<unknown> {
+  return pedir('PUT', ruta, cuerpo);
 }
